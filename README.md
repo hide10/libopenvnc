@@ -59,7 +59,7 @@ libopenvncは、[RFC 6143](https://datatracker.ietf.org/doc/html/rfc6143)で定�
 6. **Phase 6**: サーバ実装
 7. **Phase 7**: プラットフォーム固有の最適化とテスト
 
-現在の状況: **Phase 1 - 未着手**
+現在の状況: **Phase 1 - 完了、Phase 2準備中**
 
 ## ビルド
 
