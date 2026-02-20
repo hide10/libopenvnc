@@ -1,67 +1,67 @@
 # libopenvnc
 
-A cross-platform VNC (RFB protocol) library written in C.
+C言語で書かれたクロスプラットフォームVNC (RFBプロトコル) ライブラリ。
 
-## Overview
+## 概要
 
-libopenvnc is an implementation of the Remote Framebuffer (RFB) protocol as defined in [RFC 6143](https://datatracker.ietf.org/doc/html/rfc6143). It provides both client and server functionality with a permissive MIT license.
+libopenvncは、[RFC 6143](https://datatracker.ietf.org/doc/html/rfc6143)で定義されたRemote Framebuffer (RFB) プロトコルの実装です。クライアントとサーバの両機能を、MITライセンスで提供します。
 
-### Why not use existing libraries?
+### なぜ既存ライブラリを使わないのか
 
-The well-known [LibVNCServer/LibVNCClient](https://github.com/LibVNC/libvncserver) is GPL v2 licensed, which restricts commercial and proprietary use. libopenvnc aims to provide equivalent functionality under the MIT license.
+有名な[LibVNCServer/LibVNCClient](https://github.com/LibVNC/libvncserver)はGPL v2ライセンスのため、商用・プロプライエタリ利用に制約があります。libopenvncはMITライセンスで同等の機能を提供することを目指します。
 
-## Project Goals
+## プロジェクト目標
 
-- **RFC 6143 full compliance**: Support all features defined in the specification
-- **RFB versions**: 3.3, 3.7, 3.8
-- **Client and Server**: Client is the primary focus, server will also be implemented
-- **Cross-platform**: Windows first, then Linux and other platforms
-- **Permissive license**: MIT license for unrestricted use
+- **RFC 6143完全準拠**: 仕様に定義された全機能をサポート
+- **RFBバージョン**: 3.3, 3.7, 3.8
+- **クライアント・サーバ両対応**: クライアントを優先的に実装し、サーバも提供
+- **クロスプラットフォーム**: Windows優先、Linux等にも対応
+- **寛容なライセンス**: MITライセンスによる自由な利用
 
-## Architecture (Planned)
+## アーキテクチャ（設計予定）
 
 ```
 ┌─────────────────────────────┐
-│  Application Layer          │  ← Recording app, viewer, etc.
+│  アプリケーション層          │  ← 録画アプリ、ビューア等（ライブラリ外）
 ├─────────────────────────────┤
-│  Client API / Server API    │  ← Public API
+│  クライアントAPI / サーバAPI │  ← 公開API
 ├─────────────────────────────┤
-│  RFB Protocol Core          │  ← Encodings, auth, message handling
+│  RFBプロトコルコア           │  ← エンコーディング、認証、メッセージ処理
 ├─────────────────────────────┤
-│  Transport (TCP/TLS)        │  ← Network abstraction
+│  トランスポート (TCP/TLS)    │  ← ネットワーク抽象化
 ├─────────────────────────────┤
-│  Platform Abstraction       │  ← OS-specific code (Win/Linux)
+│  プラットフォーム抽象化      │  ← OS固有コード (Win/Linux)
 └─────────────────────────────┘
 ```
 
-## RFC 6143 Scope
+## RFC 6143 対応範囲
 
-### Encodings
+### エンコーディング
 - Raw (0), CopyRect (1), RRE (2), Hextile (5), TRLE (15), ZRLE (16)
-- Pseudo-encodings: Cursor (-239), DesktopSize (-223)
+- 疑似エンコーディング: Cursor (-239), DesktopSize (-223)
 
-### Security Types
+### セキュリティタイプ
 - None (1), VNC Authentication (2)
 
-### Client-to-Server Messages
+### クライアント→サーバ メッセージ
 - SetPixelFormat, SetEncodings, FramebufferUpdateRequest, KeyEvent, PointerEvent, ClientCutText
 
-### Server-to-Client Messages
+### サーバ→クライアント メッセージ
 - FramebufferUpdate, SetColourMapEntries, Bell, ServerCutText
 
-## Roadmap
+## ロードマップ
 
-1. **Phase 1**: RFC 6143 specification analysis and detailed design
-2. **Phase 2**: Core protocol implementation (handshake, message types)
-3. **Phase 3**: Client implementation (connect, receive framebuffer, input events)
-4. **Phase 4**: Encoding implementations (Raw → CopyRect → RRE → Hextile → TRLE → ZRLE)
-5. **Phase 5**: Security (VNC Authentication)
-6. **Phase 6**: Server implementation
-7. **Phase 7**: Platform-specific optimization and testing
+1. **Phase 1**: RFC 6143仕様分析・詳細設計
+2. **Phase 2**: コアプロトコル実装（ハンドシェイク、メッセージ型）
+3. **Phase 3**: クライアント実装（接続、フレームバッファ受信、入力イベント）
+4. **Phase 4**: エンコーディング実装（Raw → CopyRect → RRE → Hextile → TRLE → ZRLE）
+5. **Phase 5**: セキュリティ（VNC Authentication）
+6. **Phase 6**: サーバ実装
+7. **Phase 7**: プラットフォーム固有の最適化とテスト
 
-Current status: **Phase 1 - Not yet started**
+現在の状況: **Phase 1 - 未着手**
 
-## Build
+## ビルド
 
 ```bash
 mkdir build && cd build
@@ -69,8 +69,8 @@ cmake ..
 cmake --build .
 ```
 
-Requires: CMake 3.15+, C11 compiler
+必要環境: CMake 3.15以上、C11対応コンパイラ
 
-## License
+## ライセンス
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License。詳細は[LICENSE](LICENSE)を参照。

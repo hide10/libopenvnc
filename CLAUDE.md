@@ -1,90 +1,93 @@
-# AI Development Guide for libopenvnc
+# libopenvnc AI開発ガイド
 
-This document provides context for AI assistants working on this project.
+このドキュメントは、本プロジェクトに関わるAIアシスタント向けの引き継ぎ資料です。
 
-## Project Summary
+## プロジェクト概要
 
-VNC (RFB protocol) library in C, MIT licensed. The owner's end goal is to build a VNC client that can record the remote screen. The library itself does NOT include recording functionality — that will be built as a separate application on top of the library.
+C言語によるVNC (RFBプロトコル) ライブラリ。MITライセンス。
+オーナーの最終目的は、VNCクライアントを使ってリモート画面を録画すること。
+ライブラリ自体に録画機能は含めない。録画はライブラリの上に別アプリケーションとして構築する。
 
-## Key Decisions Made
+## 決定済み事項
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Language | C | AI-driven development, maximum compatibility/FFI |
-| License | MIT | GPL (used by LibVNCServer) prevents commercial use |
-| Build system | CMake | Standard for cross-platform C libraries |
-| Spec | RFC 6143 | Official RFB protocol specification |
-| Scope | Full RFC 6143 | All encodings, security types, message types, RFB 3.3/3.7/3.8 |
-| Client priority | Client first | Owner's immediate need is a VNC client for screen recording |
-| Server | Will implement | Public library, so server functionality is also needed |
-| Platform | Windows first | Base layer cross-platform (Linux etc.) |
-| Recording | Not in library | Application-level concern, not library scope |
+| 項目 | 決定 | 理由 |
+|------|------|------|
+| 言語 | C | AI駆動開発、最大限の互換性/FFI |
+| ライセンス | MIT | LibVNCServerのGPLでは業務利用が困難 |
+| ビルドシステム | CMake | クロスプラットフォームCライブラリの標準 |
+| 準拠仕様 | RFC 6143 | RFBプロトコルの公式仕様 |
+| スコープ | RFC 6143全体 | 仕様に定義された全エンコーディング、セキュリティタイプ、メッセージタイプ、RFB 3.3/3.7/3.8 |
+| 優先度 | クライアント優先 | オーナーの直近ニーズがVNCクライアントによる画面録画 |
+| サーバ | 実装する | 公開ライブラリのためサーバ機能も必要 |
+| プラットフォーム | Windows優先 | ベース部分はクロスプラットフォーム（Linux等） |
+| 録画機能 | ライブラリ外 | アプリケーション層の責務 |
+| ドキュメント言語 | 日本語 | 英語版は別途用意しても良い |
 
-## Current Phase
+## 現在のフェーズ
 
-**Phase 1: RFC 6143 specification analysis**
+**Phase 1: RFC 6143仕様分析**
 
-The RFC has NOT been read/analyzed yet. This is the first task to complete.
+RFCはまだ読み込み・分析されていない。これが最初に完了すべきタスク。
 
-### What needs to happen in Phase 1:
-1. Read RFC 6143 thoroughly
-2. Document the protocol in detail (handshake flow, message formats, encoding formats, security mechanisms)
-3. Document differences between RFB 3.3, 3.7, and 3.8
-4. Create a detailed library design (module structure, public API, data structures)
-5. Commit documentation to the repo (in docs/ directory)
+### Phase 1でやるべきこと
+1. RFC 6143を精読する
+2. プロトコルを詳細にドキュメント化する（ハンドシェイクフロー、メッセージフォーマット、エンコーディング形式、セキュリティ機構）
+3. RFB 3.3, 3.7, 3.8の差異をドキュメント化する
+4. ライブラリの詳細設計を行う（モジュール構成、公開API、データ構造）
+5. ドキュメントをリポジトリにコミットする（docs/ディレクトリ）
 
-## RFB Protocol Quick Reference
+## RFBプロトコル概要
 
-- **RFB** = Remote Framebuffer Protocol (the protocol VNC uses)
+- **RFB** = Remote Framebuffer Protocol（VNCが使用するプロトコル）
 - **RFC 6143** = https://datatracker.ietf.org/doc/html/rfc6143
-- RFB versions: 3.3 (original), 3.7 (security negotiation), 3.8 (error handling, standardized in RFC)
-- Client-pull model: client must request framebuffer updates; server does not push automatically
-- Handshake: version negotiation → security type negotiation → authentication → initialization
+- RFBバージョン: 3.3（初期版）, 3.7（セキュリティネゴシエーション追加）, 3.8（エラーハンドリング改善、RFCで標準化）
+- クライアントプルモデル: クライアントがフレームバッファ更新を要求する。サーバは自動プッシュしない
+- ハンドシェイク: バージョンネゴシエーション → セキュリティタイプネゴシエーション → 認証 → 初期化
 
-## Reference: LibVNCServer (existing GPL library)
+## 参考情報: LibVNCServer（既存GPLライブラリ）
 
-Investigated and rejected due to GPL v2 license. However, useful design insights:
-- Callback-based API design works well (MallocFrameBuffer, GotFrameBufferUpdate, FinishedFrameBufferUpdate)
-- `client->frameBuffer` direct pointer access pattern is efficient for recording
-- They have a `vnc2mpg.c` example that records VNC to MP4 via FFmpeg
-- RFB is pull-based: continuous `SendFramebufferUpdateRequest` is needed for recording
+GPL v2ライセンスのため採用を見送り。ただし設計上の知見は参考になる:
+- コールバックベースのAPI設計が有効（MallocFrameBuffer, GotFrameBufferUpdate, FinishedFrameBufferUpdate）
+- `client->frameBuffer` への直接ポインタアクセスパターンは録画に効率的
+- `vnc2mpg.c` というVNC→MP4録画サンプルが存在（FFmpeg連携）
+- RFBはプル型: 録画時は `SendFramebufferUpdateRequest` を継続的に送信する必要がある
 
-## Architecture Plan
+## アーキテクチャ設計
 
 ```
 ┌─────────────────────────────┐
-│  Application Layer          │  ← Not part of library
+│  アプリケーション層          │  ← ライブラリ外
 ├─────────────────────────────┤
-│  Client API / Server API    │  ← Public API (ovnc_client.h / ovnc_server.h)
+│  クライアントAPI / サーバAPI │  ← 公開API (ovnc_client.h / ovnc_server.h)
 ├─────────────────────────────┤
-│  RFB Protocol Core          │  ← Encodings, auth, message parsing
+│  RFBプロトコルコア           │  ← エンコーディング、認証、メッセージ解析
 ├─────────────────────────────┤
-│  Transport (TCP/TLS)        │  ← Network I/O abstraction
+│  トランスポート (TCP/TLS)    │  ← ネットワークI/O抽象化
 ├─────────────────────────────┤
-│  Platform Abstraction       │  ← Win32/POSIX socket, threading, etc.
+│  プラットフォーム抽象化      │  ← Win32/POSIXソケット、スレッド等
 └─────────────────────────────┘
 ```
 
-## Code Conventions (TBD)
+## コード規約（未決定）
 
-- C11 standard
-- Naming convention: to be decided in design phase (likely `ovnc_` prefix)
-- Error handling pattern: to be decided
+- C11標準
+- 命名規則: 設計フェーズで決定予定（`ovnc_` プレフィックスの見込み）
+- エラーハンドリングパターン: 設計フェーズで決定予定
 
-## File Structure (Current)
+## 現在のファイル構成
 
 ```
 libopenvnc/
 ├── .gitignore
 ├── CMakeLists.txt
 ├── LICENSE          (MIT)
-├── README.md        (project overview and roadmap)
-└── CLAUDE.md        (this file)
+├── README.md        (プロジェクト概要・ロードマップ)
+└── CLAUDE.md        (このファイル)
 ```
 
-## Next Steps
+## 次のステップ
 
-1. Read and analyze RFC 6143
-2. Create docs/ directory with specification notes
-3. Design public API
-4. Begin implementation (Phase 2)
+1. RFC 6143を精読・分析する
+2. docs/ ディレクトリに仕様ノートを作成する
+3. 公開APIを設計する
+4. 実装開始（Phase 2）
