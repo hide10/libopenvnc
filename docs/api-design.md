@@ -297,10 +297,10 @@ typedef struct {
 /* クライアント設定
  *
  * 所有権の規約:
- * ovnc_client_create() は全フィールドをディープコピーする。
- * 呼び出し側は create() の返却後、config 構造体および
- * そのポインタが指す領域 (host, pixel_format, encodings) を
+ * ovnc_client_create() は host, pixel_format, encodings をディープコピーする。
+ * 呼び出し側は create() の返却後、これらのポインタが指す領域を
  * 自由に解放・変更してよい。
+ * user_data はポインタ値のみ保持（shallow copy）し、所有権は呼び出し側にある。
  */
 typedef struct {
     const char                *host;           /* サーバホスト名/IP (deep copy) */
@@ -524,15 +524,23 @@ typedef int (*ovnc_verify_password_fn)(
 ### サーバ設定
 
 ```c
+/* サーバ設定
+ *
+ * 所有権の規約:
+ * ovnc_server_create() は name, security_types をディープコピーする。
+ * 呼び出し側は create() の返却後、config 構造体および
+ * そのポインタが指す領域を自由に解放・変更してよい。
+ * user_data はポインタ値のみ保持し、所有権は呼び出し側にある。
+ */
 typedef struct {
-    const char              *name;           /* デスクトップ名 */
+    const char              *name;           /* デスクトップ名 (deep copy) */
     uint16_t                 port;           /* リッスンポート (デフォルト: 5900) */
     uint16_t                 width;          /* フレームバッファ幅 */
     uint16_t                 height;         /* フレームバッファ高さ */
     ovnc_pixel_format_t      pixel_format;   /* ピクセルフォーマット */
-    ovnc_security_type_t    *security_types; /* サポートするセキュリティタイプ */
+    ovnc_security_type_t    *security_types; /* サポートするセキュリティタイプ (deep copy) */
     size_t                   num_security_types;
-    void                    *user_data;
+    void                    *user_data;      /* ユーザデータ (ポインタ値のみ保持、所有権は呼び出し側) */
 } ovnc_server_config_t;
 ```
 
@@ -580,7 +588,19 @@ ovnc_error_t ovnc_server_run(ovnc_server_t *server);
  * フレームバッファ操作
  *-------------------------------------------------------------------*/
 
-/* フレームバッファへのポインタ取得 (書き込み可能) */
+/* フレームバッファへのポインタ取得 (書き込み可能)
+ *
+ * スレッド安全性:
+ * - フレームバッファへの書き込みと mark_rect_modified() の呼び出しは
+ *   任意のスレッドから行えるが、同一領域への書き込みと
+ *   ライブラリによるエンコード送信が競合しないよう、以下の手順を守ること:
+ *   1. フレームバッファの該当領域にピクセルを書き込む
+ *   2. 書き込み完了後に mark_rect_modified() を呼ぶ
+ * - mark_rect_modified() 呼び出し後、ライブラリがその領域を読み取って
+ *   クライアントに送信するまでの間、該当領域を書き換えてはならない
+ * - resize() はフレームバッファポインタを無効化する可能性がある。
+ *   resize() 完了後は get_framebuffer() で再取得すること
+ */
 ovnc_framebuffer_t* ovnc_server_get_framebuffer(ovnc_server_t *server);
 
 /* 指定領域を全クライアントに更新通知
@@ -648,6 +668,7 @@ if (err != OVNC_OK) {
 ```c
 #include <ovnc/ovnc.h>
 #include <stdio.h>
+#include <string.h>
 
 static void on_framebuffer_update(ovnc_client_t *client, const ovnc_rect_t *rect)
 {
@@ -660,9 +681,11 @@ static void on_update_finished(ovnc_client_t *client)
     ovnc_client_request_update(client, NULL, 1);
 }
 
+/* VNC認証のパスワードはRFB仕様上8文字が上限。
+ * 8文字を超える部分はライブラリ側で切り詰められる。 */
 static int on_get_password(ovnc_client_t *client, char *buf, size_t buf_size)
 {
-    const char *pw = "mypassword";
+    const char *pw = "secret";
     size_t len = strlen(pw);
     if (len >= buf_size) len = buf_size - 1;
     memcpy(buf, pw, len);
