@@ -10,6 +10,13 @@
 2. **コールバックベースAPI**: 非同期イベントをコールバック関数で通知
 3. **メモリ管理の明確化**: 所有権のルールを明確にし、ユーザが制御可能に
 4. **スレッド安全性**: メッセージ送信はスレッドセーフ。コールバックはI/Oスレッドから呼ばれる
+   - `ovnc_client_get_framebuffer()` が返すポインタはコールバック外からも参照可能だが、
+     コールバック実行中にライブラリがフレームバッファを更新するため、コールバック外から
+     読み取る場合は利用者側でロックを取る必要がある
+   - コールバック内（`framebuffer_update`, `framebuffer_update_finished`）では
+     フレームバッファの該当矩形は更新済みであり、安全に読み取れる
+   - `alloc_framebuffer` コールバック後にポインタが変わる可能性がある（再確保時）。
+     古いポインタをキャッシュしている場合は無効になる
 5. **エラー処理**: 戻り値によるエラー通知 + エラーコード取得関数
 6. **最小依存**: 外部依存はzlib（ZRLE用）のみ必須。TLS/暗号はオプション
 
@@ -248,8 +255,23 @@ typedef void (*ovnc_disconnected_fn)(
     ovnc_error_t reason
 );
 
-/* パスワード要求 (VNC認証) */
-typedef const char* (*ovnc_get_password_fn)(ovnc_client_t *client);
+/* パスワード要求 (VNC認証)
+ *
+ * ライブラリが提供するバッファにパスワードを書き込む。
+ * - buf: ライブラリが確保した書き込み先バッファ
+ * - buf_size: バッファサイズ (NUL終端を含む)。RFBの仕様上パスワードは最大8文字だが、
+ *   バッファは余裕を持って確保される
+ * - 戻り値: 成功時はパスワードの長さ (NUL終端を含まない)。失敗/キャンセル時は -1
+ *
+ * セキュリティ上の契約:
+ * - ライブラリは認証処理完了後、バッファをゼロクリアする
+ * - 呼び出し側はスタック上の一時変数等からコピーし、コピー元も速やかにゼロクリアすべき
+ */
+typedef int (*ovnc_get_password_fn)(
+    ovnc_client_t *client,
+    char *buf,
+    size_t buf_size
+);
 ```
 
 ### コールバック構造体
@@ -272,23 +294,43 @@ typedef struct {
 ### クライアント設定
 
 ```c
+/* クライアント設定
+ *
+ * 所有権の規約:
+ * ovnc_client_create() は全フィールドをディープコピーする。
+ * 呼び出し側は create() の返却後、config 構造体および
+ * そのポインタが指す領域 (host, pixel_format, encodings) を
+ * 自由に解放・変更してよい。
+ */
 typedef struct {
-    const char                *host;           /* サーバホスト名/IP */
+    const char                *host;           /* サーバホスト名/IP (deep copy) */
     uint16_t                   port;           /* ポート (デフォルト: 5900) */
     uint8_t                    shared;         /* 共有フラグ (1=共有, 0=排他) */
-    ovnc_pixel_format_t       *pixel_format;   /* 要求ピクセルフォーマット (NULL=サーバデフォルト) */
-    const ovnc_encoding_type_t *encodings;     /* エンコーディング優先リスト */
+    ovnc_pixel_format_t       *pixel_format;   /* 要求ピクセルフォーマット (NULL=サーバデフォルト, deep copy) */
+    const ovnc_encoding_type_t *encodings;     /* エンコーディング優先リスト (deep copy) */
     size_t                     num_encodings;   /* エンコーディング数 */
     uint32_t                   connect_timeout_ms; /* 接続タイムアウト (0=デフォルト) */
-    void                      *user_data;      /* ユーザデータ */
+    void                      *user_data;      /* ユーザデータ (ポインタをそのまま保持、所有権は呼び出し側) */
 } ovnc_client_config_t;
 ```
 
 ### 接続情報
 
 ```c
+/* 接続情報
+ *
+ * name フィールドの契約:
+ * - 常にNUL終端される
+ * - サーバ名が OVNC_SERVER_NAME_MAX - 1 バイトを超える場合は切り詰められる
+ * - 切り詰めが発生した場合 name_truncated が非0になる
+ * - 実際の完全なサーバ名長は name_length で取得可能
+ */
+#define OVNC_SERVER_NAME_MAX 256
+
 typedef struct {
-    char                  name[256];      /* サーバ名 */
+    char                  name[OVNC_SERVER_NAME_MAX]; /* サーバ名 (NUL終端保証) */
+    uint32_t              name_length;    /* サーバ名の実長 (切り詰め前) */
+    int                   name_truncated; /* 非0: 切り詰めが発生した */
     uint16_t              width;          /* フレームバッファ幅 */
     uint16_t              height;         /* フレームバッファ高さ */
     ovnc_pixel_format_t   pixel_format;   /* サーバのピクセルフォーマット */
@@ -401,7 +443,16 @@ ovnc_error_t ovnc_client_set_encodings(
  * フレームバッファアクセス
  *-------------------------------------------------------------------*/
 
-/* フレームバッファへのポインタを取得 (読み取り専用) */
+/* フレームバッファへのポインタを取得 (読み取り専用)
+ *
+ * スレッド安全性:
+ * - コールバック内 (framebuffer_update, framebuffer_update_finished) では
+ *   ロックなしで安全に読み取れる
+ * - コールバック外からアクセスする場合は、利用者側でロックを取り
+ *   process_message / run と並行実行しないよう排他すること
+ * - alloc_framebuffer コールバック後はポインタが変わる可能性がある
+ *   (古いポインタは無効になる)
+ */
 const ovnc_framebuffer_t* ovnc_client_get_framebuffer(
     const ovnc_client_t *client
 );
@@ -609,9 +660,14 @@ static void on_update_finished(ovnc_client_t *client)
     ovnc_client_request_update(client, NULL, 1);
 }
 
-static const char* on_get_password(ovnc_client_t *client)
+static int on_get_password(ovnc_client_t *client, char *buf, size_t buf_size)
 {
-    return "mypassword";
+    const char *pw = "mypassword";
+    size_t len = strlen(pw);
+    if (len >= buf_size) len = buf_size - 1;
+    memcpy(buf, pw, len);
+    buf[len] = '\0';
+    return (int)len;
 }
 
 int main(void)
@@ -744,6 +800,7 @@ add_library(ovnc_static STATIC ...)
 option(OVNC_BUILD_TESTS "テストをビルド" ON)
 option(OVNC_BUILD_EXAMPLES "サンプルをビルド" ON)
 option(OVNC_ENABLE_TLS "TLSサポートを有効化" OFF)
+option(OVNC_ENABLE_VNC_AUTH "VNC認証 (DES) を有効化" ON)
 ```
 
 ### 外部依存
@@ -751,8 +808,25 @@ option(OVNC_ENABLE_TLS "TLSサポートを有効化" OFF)
 | ライブラリ | 用途 | 必須/オプション |
 |-----------|------|----------------|
 | zlib | ZRLE圧縮展開 | 必須 |
-| OpenSSL / mbedTLS | TLS, VNC認証のDES | オプション (VNC認証にはDESが必要) |
+| OpenSSL / mbedTLS | TLS (暗号化トランスポート) | オプション (`OVNC_ENABLE_TLS=ON` 時) |
+
+### ビルドオプションと機能マトリクス
+
+`OVNC_ENABLE_TLS` と `OVNC_ENABLE_VNC_AUTH` は独立したオプションとして扱う。
+
+| OVNC_ENABLE_VNC_AUTH | OVNC_ENABLE_TLS | DES実装 | セキュリティタイプ |
+|---------------------|-----------------|---------|-------------------|
+| OFF | OFF | なし | None のみ |
+| ON | OFF | 内蔵DES | None, VNC Authentication |
+| OFF | ON | なし | None + TLS拡張 |
+| ON | ON | OpenSSL/mbedTLSのDES | None, VNC Authentication + TLS拡張 |
 
 **VNC認証のDES実装について:**
-- 外部暗号ライブラリが無い場合、最小限のDES実装を内蔵することも検討
-- 暗号学的に脆弱と明記されているため、独自実装でも実用上の問題は少ない
+
+- `OVNC_ENABLE_VNC_AUTH=ON` かつ `OVNC_ENABLE_TLS=OFF` の場合:
+  最小限のDES実装を内蔵する（RFBのVNC認証専用、汎用暗号ライブラリとしては提供しない）
+- `OVNC_ENABLE_VNC_AUTH=ON` かつ `OVNC_ENABLE_TLS=ON` の場合:
+  外部暗号ライブラリ (OpenSSL/mbedTLS) のDESを使用
+- RFC 6143自体がVNC認証を「暗号学的に脆弱」と明記しているため、
+  内蔵DES実装でも実用上の問題は少ない
+- CI構成では全4パターンをビルド・テストする
