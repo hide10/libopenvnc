@@ -2,18 +2,32 @@
 
 #ifdef _WIN32
 
+static int platform_init_count = 0;
+
 ovnc_error_t ovnc__platform_init(void)
 {
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-        return OVNC_ERR_IO;
+    if (platform_init_count == 0) {
+        WSADATA wsa;
+        if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+            return OVNC_ERR_IO;
+    }
+    platform_init_count++;
     return OVNC_OK;
 }
 
 void ovnc__platform_cleanup(void)
 {
-    WSACleanup();
+    if (platform_init_count > 0) {
+        platform_init_count--;
+        if (platform_init_count == 0)
+            WSACleanup();
+    }
 }
+
+/*
+ * Win32 socket operations are not yet implemented.
+ * Full implementation is planned for a future phase.
+ */
 
 ovnc_error_t ovnc__socket_connect(const char *host, uint16_t port,
                                   uint32_t timeout_ms, ovnc_socket_t *out)
@@ -22,8 +36,7 @@ ovnc_error_t ovnc__socket_connect(const char *host, uint16_t port,
     (void)port;
     (void)timeout_ms;
     *out = OVNC_INVALID_SOCKET;
-    /* TODO: Win32 socket implementation */
-    return OVNC_ERR_IO;
+    return OVNC_ERR_IO; /* Not yet implemented */
 }
 
 void ovnc__socket_close(ovnc_socket_t sock)
@@ -38,7 +51,7 @@ ovnc_error_t ovnc__socket_send_all(ovnc_socket_t sock,
     (void)sock;
     (void)data;
     (void)len;
-    return OVNC_ERR_IO;
+    return OVNC_ERR_IO; /* Not yet implemented */
 }
 
 ovnc_error_t ovnc__socket_recv_all(ovnc_socket_t sock,
@@ -47,7 +60,7 @@ ovnc_error_t ovnc__socket_recv_all(ovnc_socket_t sock,
     (void)sock;
     (void)buf;
     (void)len;
-    return OVNC_ERR_IO;
+    return OVNC_ERR_IO; /* Not yet implemented */
 }
 
 #endif /* _WIN32 */

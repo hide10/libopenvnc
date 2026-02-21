@@ -1,4 +1,5 @@
 #include "ovnc_internal.h"
+#include "platform/ovnc_platform.h"
 #include "transport/ovnc_transport.h"
 #include "protocol/ovnc_handshake.h"
 #include "protocol/ovnc_messages.h"
@@ -102,14 +103,17 @@ ovnc_error_t ovnc_client_connect(ovnc_client_t *client)
         return err;
 
     err = ovnc__transport_create(&client->transport);
-    if (err != OVNC_OK)
+    if (err != OVNC_OK) {
+        ovnc__platform_cleanup();
         return err;
+    }
 
     err = ovnc__transport_connect(client->transport, client->host,
                                   client->port, client->connect_timeout_ms);
     if (err != OVNC_OK) {
         ovnc__transport_destroy(client->transport);
         client->transport = NULL;
+        ovnc__platform_cleanup();
         return err;
     }
 
@@ -117,6 +121,7 @@ ovnc_error_t ovnc_client_connect(ovnc_client_t *client)
     if (err != OVNC_OK) {
         ovnc__transport_destroy(client->transport);
         client->transport = NULL;
+        ovnc__platform_cleanup();
         return err;
     }
 
@@ -134,6 +139,7 @@ ovnc_error_t ovnc_client_disconnect(ovnc_client_t *client)
     ovnc__transport_destroy(client->transport);
     client->transport = NULL;
     client->state = OVNC_CLIENT_STATE_DISCONNECTED;
+    ovnc__platform_cleanup();
     return OVNC_OK;
 }
 

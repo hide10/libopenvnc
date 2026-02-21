@@ -94,6 +94,10 @@ static ovnc_error_t negotiate_security(ovnc_client_t *client)
             return read_failure_reason(t);
         }
 
+        /* RFB 3.3: server chose the type, we can only accept None */
+        if (sec_type != OVNC_SECURITY_NONE)
+            return OVNC_ERR_AUTH_UNSUPPORTED;
+
         client->conn_info.security_type = (ovnc_security_type_t)sec_type;
     } else {
         /* RFB 3.7 / 3.8: server sends list, client chooses */
@@ -219,12 +223,15 @@ static ovnc_error_t do_initialization(ovnc_client_t *client)
             client->conn_info.name[OVNC_SERVER_NAME_MAX - 1] = '\0';
             client->conn_info.name_truncated = 1;
 
-            /* Skip remaining bytes */
+            /* Skip remaining bytes using fixed-size chunk reads */
             uint32_t skip = name_len - (OVNC_SERVER_NAME_MAX - 1);
-            uint8_t *tmp = malloc(skip);
-            if (tmp) {
-                ovnc__transport_recv(t, tmp, skip);
-                free(tmp);
+            uint8_t discard[256];
+            while (skip > 0) {
+                uint32_t chunk = skip > sizeof(discard) ? sizeof(discard) : skip;
+                err = ovnc__transport_recv(t, discard, chunk);
+                if (err != OVNC_OK)
+                    return err;
+                skip -= chunk;
             }
         } else {
             err = ovnc__transport_recv(t, client->conn_info.name, read_len);
@@ -251,6 +258,8 @@ static ovnc_error_t do_initialization(ovnc_client_t *client)
     client->framebuffer.format = active_fmt;
 
     int bpp = ovnc_pixel_format_bytes_per_pixel(&active_fmt);
+    if (bpp < 0)
+        return OVNC_ERR_PROTOCOL;
     size_t data_size = (size_t)client->framebuffer.width *
                        (size_t)client->framebuffer.height * (size_t)bpp;
     client->framebuffer.data_size = data_size;

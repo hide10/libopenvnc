@@ -12,13 +12,18 @@
 #include <fcntl.h>
 #include <poll.h>
 
+static int platform_init_count = 0;
+
 ovnc_error_t ovnc__platform_init(void)
 {
+    platform_init_count++;
     return OVNC_OK;
 }
 
 void ovnc__platform_cleanup(void)
 {
+    if (platform_init_count > 0)
+        platform_init_count--;
 }
 
 ovnc_error_t ovnc__socket_connect(const char *host, uint16_t port,

@@ -39,12 +39,20 @@ static void test_pixel_format_default(void)
 static void test_pixel_format_bytes_per_pixel(void)
 {
     ovnc_pixel_format_t fmt;
+    memset(&fmt, 0, sizeof(fmt));
     fmt.bits_per_pixel = 8;
     assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == 1);
     fmt.bits_per_pixel = 16;
     assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == 2);
     fmt.bits_per_pixel = 32;
     assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == 4);
+    /* Invalid values should return -1 */
+    fmt.bits_per_pixel = 0;
+    assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == -1);
+    fmt.bits_per_pixel = 24;
+    assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == -1);
+    fmt.bits_per_pixel = 255;
+    assert(ovnc_pixel_format_bytes_per_pixel(&fmt) == -1);
 }
 
 static void test_pixel_format_roundtrip(void)

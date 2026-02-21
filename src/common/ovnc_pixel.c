@@ -17,7 +17,12 @@ void ovnc_pixel_format_init_default(ovnc_pixel_format_t *fmt)
 
 int ovnc_pixel_format_bytes_per_pixel(const ovnc_pixel_format_t *fmt)
 {
-    return fmt->bits_per_pixel / 8;
+    switch (fmt->bits_per_pixel) {
+    case 8:  return 1;
+    case 16: return 2;
+    case 32: return 4;
+    default: return -1;
+    }
 }
 
 void ovnc__pixel_format_to_wire(const ovnc_pixel_format_t *fmt, uint8_t buf[16])
