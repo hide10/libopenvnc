@@ -26,6 +26,7 @@ typedef enum {
     OVNC_ERR_PROTOCOL,
     OVNC_ERR_ENCODING_UNSUPPORTED,
     OVNC_ERR_ZLIB,
+    OVNC_ERR_NOT_IMPLEMENTED,
 } ovnc_error_t;
 
 const char* ovnc_error_string(ovnc_error_t error);

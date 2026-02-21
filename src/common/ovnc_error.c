@@ -16,6 +16,7 @@ const char* ovnc_error_string(ovnc_error_t error)
     case OVNC_ERR_PROTOCOL:            return "Protocol error";
     case OVNC_ERR_ENCODING_UNSUPPORTED: return "Unsupported encoding";
     case OVNC_ERR_ZLIB:               return "zlib error";
+    case OVNC_ERR_NOT_IMPLEMENTED:    return "Not implemented";
     }
     return "Unknown error";
 }
