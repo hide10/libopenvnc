@@ -1,17 +1,20 @@
 #include "ovnc_internal.h"
 
+#define OVNC_CHANNEL_BITS  8
+#define OVNC_CHANNEL_MAX   ((1 << OVNC_CHANNEL_BITS) - 1) /* 255 */
+
 void ovnc_pixel_format_init_default(ovnc_pixel_format_t *fmt)
 {
-    /* 32bpp BGRA (common desktop format) */
+    /* 32bpp BGRA (common desktop format, 8 bits per channel) */
     fmt->bits_per_pixel = 32;
-    fmt->depth          = 24;
+    fmt->depth          = 3 * OVNC_CHANNEL_BITS; /* 24 */
     fmt->big_endian     = 0;
     fmt->true_color     = 1;
-    fmt->red_max        = 255;
-    fmt->green_max      = 255;
-    fmt->blue_max       = 255;
-    fmt->red_shift      = 16;
-    fmt->green_shift    = 8;
+    fmt->red_max        = OVNC_CHANNEL_MAX;
+    fmt->green_max      = OVNC_CHANNEL_MAX;
+    fmt->blue_max       = OVNC_CHANNEL_MAX;
+    fmt->red_shift      = 2 * OVNC_CHANNEL_BITS; /* 16 */
+    fmt->green_shift    = 1 * OVNC_CHANNEL_BITS; /* 8 */
     fmt->blue_shift     = 0;
 }
 

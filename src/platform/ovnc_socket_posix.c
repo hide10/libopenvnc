@@ -91,11 +91,12 @@ ovnc_error_t ovnc__socket_connect(const char *host, uint16_t port,
         }
 
         /* Success */
-        freeaddrinfo(res);
         *out = sock;
-        return OVNC_OK;
+        err = OVNC_OK;
+        goto cleanup;
     }
 
+cleanup:
     freeaddrinfo(res);
     return err;
 }

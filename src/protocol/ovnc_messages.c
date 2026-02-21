@@ -187,15 +187,20 @@ static ovnc_error_t handle_color_map_entries(ovnc_client_t *client)
         uint16_t *red   = malloc(sizeof(uint16_t) * num_colors);
         uint16_t *green = malloc(sizeof(uint16_t) * num_colors);
         uint16_t *blue  = malloc(sizeof(uint16_t) * num_colors);
-        if (red && green && blue) {
-            for (uint16_t i = 0; i < num_colors; i++) {
-                red[i]   = ovnc__read_u16(&data[i * 6]);
-                green[i] = ovnc__read_u16(&data[i * 6 + 2]);
-                blue[i]  = ovnc__read_u16(&data[i * 6 + 4]);
-            }
-            client->callbacks.color_map_update(client, first_color,
-                                               num_colors, red, green, blue);
+        if (!red || !green || !blue) {
+            free(red);
+            free(green);
+            free(blue);
+            free(data);
+            return OVNC_ERR_NOMEM;
         }
+        for (uint16_t i = 0; i < num_colors; i++) {
+            red[i]   = ovnc__read_u16(&data[i * 6]);
+            green[i] = ovnc__read_u16(&data[i * 6 + 2]);
+            blue[i]  = ovnc__read_u16(&data[i * 6 + 4]);
+        }
+        client->callbacks.color_map_update(client, first_color,
+                                           num_colors, red, green, blue);
         free(red);
         free(green);
         free(blue);
