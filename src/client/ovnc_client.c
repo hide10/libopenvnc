@@ -267,12 +267,37 @@ ovnc_error_t ovnc_client_set_pixel_format(ovnc_client_t *client,
     if (!client || !format || client->state != OVNC_CLIENT_STATE_CONNECTED)
         return OVNC_ERR_INVALID_ARG;
 
+    int new_bpp = ovnc_pixel_format_bytes_per_pixel(format);
+    if (new_bpp < 0)
+        return OVNC_ERR_INVALID_ARG;
+
     ovnc_error_t err = ovnc__send_set_pixel_format(client, format);
     if (err != OVNC_OK)
         return err;
 
-    /* Update local format */
+    /* Update local format and reallocate framebuffer if bpp changed */
+    int old_bpp = ovnc_pixel_format_bytes_per_pixel(&client->framebuffer.format);
     client->framebuffer.format = *format;
+
+    size_t new_size = (size_t)client->framebuffer.width *
+                      (size_t)client->framebuffer.height * (size_t)new_bpp;
+
+    if (new_bpp != old_bpp) {
+        client->framebuffer.data_size = new_size;
+        if (client->callbacks.alloc_framebuffer) {
+            err = client->callbacks.alloc_framebuffer(client,
+                                                      &client->framebuffer);
+            if (err != OVNC_OK)
+                return err;
+        } else {
+            uint8_t *new_data = calloc(1, new_size);
+            if (!new_data)
+                return OVNC_ERR_NOMEM;
+            free(client->framebuffer.data);
+            client->framebuffer.data = new_data;
+        }
+    }
+
     return OVNC_OK;
 }
 
